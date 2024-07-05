@@ -1,5 +1,10 @@
 #!/usr/bin/env ruby
 
-require_relative 'cli'
 
-CLI.start(ARGV)
+case RbConfig::CONFIG['host_os']
+when /darwin|linux/i
+  require_relative 'platforms/nix'
+  NixCLI.start(ARGV)
+when /mswin|mingw|cygwin/i
+  raise "Windows is not supported yet"
+end

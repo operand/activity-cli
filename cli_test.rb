@@ -1,12 +1,12 @@
 require 'minitest/autorun'
 require 'json'
 require 'tempfile'
-require_relative 'cli'
+require_relative 'platforms/nix' # TODO: add support for other platforms
 
 class CLITests < Minitest::Test
   def setup
     @log_file = Tempfile.new('activity_log')
-    CLI.class_variable_set(:@@log_file, @log_file.path)
+    NixCLI.class_variable_set(:@@log_file, @log_file.path)
   end
 
   def teardown
@@ -18,7 +18,7 @@ class CLITests < Minitest::Test
     path = 'true'
     args = ['arg1', 'arg2']
     assert_output(/Started process \d+\n/) do
-      CLI.start("start_process #{path} #{args.join(' ')}".split)
+      NixCLI.start("start_process #{path} #{args.join(' ')}".split)
     end
     assert_logged_activity(
       type: 'process_start',
@@ -33,7 +33,7 @@ class CLITests < Minitest::Test
   def test_create_new_file
     path = 'tmp/test_file.txt'
     assert_output("Created file at #{path}\n") do
-      CLI.start("create_new_file #{path}".split)
+      NixCLI.start("create_new_file #{path}".split)
     end
     assert_logged_activity(
       type: 'file_creation',
@@ -51,7 +51,7 @@ class CLITests < Minitest::Test
     path = 'tmp/test_file.txt'
     File.write(path, '')
     assert_output("Modified file at #{path}\n") do
-      CLI.start("modify_file #{path}".split)
+      NixCLI.start("modify_file #{path}".split)
     end
     assert_logged_activity(
       type: 'file_modification',
@@ -69,7 +69,7 @@ class CLITests < Minitest::Test
     path = 'tmp/test_file.txt'
     File.write(path, '')
     assert_output("Deleted file at #{path}\n") do
-      CLI.start("delete_file #{path}".split)
+      NixCLI.start("delete_file #{path}".split)
     end
     assert_logged_activity(
       type: 'file_deletion',
@@ -84,16 +84,18 @@ class CLITests < Minitest::Test
   end
 
   def test_network_activity
-    destination = 'example.com'
+    host = 'example.com'
+    port = 80
     protocol = 'TCP'
     data = 'testdata'
-    assert_output("Sent data to #{destination}\n") do
-      CLI.start("network_activity #{destination} #{protocol} #{data}".split)
+    assert_output("Sent data to #{host}:#{port}\n") do
+      NixCLI.start("network_activity #{host} #{port} #{protocol} #{data}".split)
     end
     assert_logged_activity(
       type: 'network_activity',
       timestamp: /.+/,
-      destination: destination,
+      host: host,
+      port: port.to_s,
       data_sent: data.size,
       protocol: protocol,
       source_address: /.+/,

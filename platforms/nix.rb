@@ -1,14 +1,7 @@
-require 'thor'
-require 'json'
 require 'socket'
+require_relative 'base'
 
-class CLI < Thor
-  # Ensure cli correctly reports failure due to bad command line arguments
-  # See: https://github.com/rails/thor/wiki/Making-An-Executable
-  def self.exit_on_failure?
-    true
-  end
-
+class NixCLI < Base
   desc "start_process PATH ARGS", "Start a process with the given path and arguments"
   def start_process(path, *args)
     start_time = Time.now
@@ -77,29 +70,32 @@ class CLI < Thor
     puts "Deleted file at #{path}"
   end
 
-  desc "network_activity DESTINATION PROTOCOL DATA", "Establish a network connection and transmit data"
-  def network_activity(destination, protocol, data)
+  desc "network_activity HOST PORT PROTOCOL DATA", "Establish a network connection and transmit data"
+  def network_activity(host, port, protocol, data)
     start_time = Time.now
     socket = case protocol.downcase
             when 'tcp'
-              TCPSocket.new(destination, 80)
+              TCPSocket.new(host, port)
             when 'udp'
               UDPSocket.new
             else
               raise ArgumentError, "Invalid protocol: #{protocol}"
             end
-    source_port, source_address = Socket.unpack_sockaddr_in(socket.getsockname)
     if protocol.downcase == 'tcp'
+      source_port, source_address = Socket.unpack_sockaddr_in(socket.getsockname)
       socket.write(data)
     else
-      socket.send(data, 0, destination, 80)
+      socket.send(data, 0, host, port)
+      # get the source info after sending data
+      source_port, source_address = Socket.unpack_sockaddr_in(socket.getsockname)
     end
     socket.close
 
     activity = {
       type: 'network_activity',
       timestamp: start_time,
-      destination: destination,
+      host: host,
+      port: port,
       data_sent: data.size,
       protocol: protocol,
       source_address: source_address,
@@ -110,36 +106,6 @@ class CLI < Thor
       pid: current_pid,
     }
     log_activity(activity)
-    puts "Sent data to #{destination}"
-  end
-
-  private
-
-  def current_pid
-    $$
-  end
-
-  def current_process_name
-    $0
-  end
-
-  def current_process_command_line
-    "#{$0} #{current_args.join(' ')}"
-  end
-
-  def current_args
-    $*
-  end
-
-  def current_username
-    `whoami`.strip
-  end
-
-  @@log_file = 'activity_log.jsonl'
-
-  def log_activity(activity)
-    File.open(@@log_file, 'a') do |file|
-      file.puts(activity.to_json)
-    end
+    puts "Sent data to #{host}:#{port}"
   end
 end
